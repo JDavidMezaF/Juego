@@ -12,7 +12,7 @@ FPS = 60
 # Preferencias de presentación
 PIXEL_ART = True        # True = escalado nítido (pixel-perfect)
 SHOW_SUELO = True       # mostrar suelo verde del motor
-BG_SPEED = 0.25         # velocidad de parallax del fondo (0 = estático)
+BG_SPEED = 0         # velocidad de parallax del fondo (0 = estático)
 
 COLOR_CIELO = (135, 206, 235)   # skyblue
 COLOR_SUELO = (0, 128, 0)       # green
@@ -278,36 +278,49 @@ class Oso:
 
 # ---------------- Enemigos y proyectiles ----------------
 class Enemigo:
-    def __init__(self, x, y, w, h, vx):
-        self.rect = pygame.Rect(x, y, w, h); self.vx = vx
-    def actualizar(self): self.rect.x -= self.vx
-    def fuera(self): return self.rect.right < 0
+    def __init__(self, x, y, w, h, vx, hacia_izquierda=True):
+        self.rect = pygame.Rect(x, y, w, h); self.vx = vx; self.hacia_izquierda = hacia_izquierda
+    def actualizar(self):
+        if self.hacia_izquierda:
+            self.rect.x -= self.vx
+        else:
+            self.rect.x += self.vx
+    def fuera(self): return self.rect.right < 0 if self.hacia_izquierda else self.rect.left > ANCHO
     def dibujar(self, surf): pygame.draw.rect(surf, COLOR_ENEMIGO, self.rect)
 
 class Cactus(Enemigo):
-    def __init__(self, x, w=30, h=40, vx=6, sprite=None):
-        super().__init__(x, SUELO_Y - h, w, h, vx); self.sprite = sprite
+    def __init__(self, x, w=30, h=40, vx=6, sprite=None, hacia_izquierda=True):
+        super().__init__(x, SUELO_Y - h, w, h, vx, hacia_izquierda); self.sprite = sprite
     def dibujar(self, surf):
         if self.sprite:
-            surf.blit(scale_img(self.sprite, self.rect.size), self.rect)
+            img = scale_img(self.sprite, self.rect.size)
+            if self.hacia_izquierda:
+                img = pygame.transform.flip(img, True, False)
+            surf.blit(img, self.rect)
         else: super().dibujar(surf)
 
 class Abeja(Enemigo):
-    def __init__(self, x, y_altura, w=28, h=24, vx=7, sprite=None):
-        super().__init__(x, y_altura, w, h, vx); self.sprite = sprite
+    def __init__(self, x, y_altura, w=28, h=24, vx=7, sprite=None, hacia_izquierda=True):
+        super().__init__(x, y_altura, w, h, vx, hacia_izquierda); self.sprite = sprite
         self.base_y = y_altura; self.amp = 12
     def actualizar(self):
-        self.rect.x -= self.vx
+        if self.hacia_izquierda:
+            self.rect.x -= self.vx
+        else:
+            self.rect.x += self.vx
         t = pygame.time.get_ticks()/200.0
         self.rect.y = self.base_y + int(self.amp * math.sin(t))
     def dibujar(self, surf):
         if self.sprite:
-            surf.blit(scale_img(self.sprite, self.rect.size), self.rect)
+            img = scale_img(self.sprite, self.rect.size)
+            if self.hacia_izquierda:
+                img = pygame.transform.flip(img, True, False)
+            surf.blit(img, self.rect)
         else: super().dibujar(surf)
 
 class Elefante(Enemigo):
-    def __init__(self, x, w=80, h=60, vx=5, sprite=None):
-        super().__init__(x, SUELO_Y - h, w, h, vx); self.sprite = sprite
+    def __init__(self, x, w=80, h=60, vx=5, sprite=None, hacia_izquierda=True):
+        super().__init__(x, SUELO_Y - h, w, h, vx, hacia_izquierda); self.sprite = sprite
         self.cd = 0
     def actualizar(self):
         super().actualizar()
@@ -315,16 +328,21 @@ class Elefante(Enemigo):
     def intentar_disparar(self, projs):
         if self.cd <= 0:
             y = self.rect.top + self.rect.h//3
-            projs.append(Hoja(self.rect.left, y, vx=8))
+            vx_proj = 8 if not self.hacia_izquierda else -8
+            x_proj = self.rect.right if not self.hacia_izquierda else self.rect.left
+            projs.append(Hoja(x_proj, y, vx=vx_proj))
             self.cd = 90; sfx(shoot_snd)
     def dibujar(self, surf):
         if self.sprite:
-            surf.blit(scale_img(self.sprite, self.rect.size), self.rect)
+            img = scale_img(self.sprite, self.rect.size)
+            if self.hacia_izquierda:
+                img = pygame.transform.flip(img, True, False)
+            surf.blit(img, self.rect)
         else: super().dibujar(surf)
 
 class Unicornio(Enemigo):
-    def __init__(self, x, w=80, h=60, vx=5, sprite=None):
-        super().__init__(x, SUELO_Y - h, w, h, vx); self.sprite = sprite
+    def __init__(self, x, w=80, h=60, vx=5, sprite=None, hacia_izquierda=True):
+        super().__init__(x, SUELO_Y - h, w, h, vx, hacia_izquierda); self.sprite = sprite
         self.cd = 0
     def actualizar(self):
         super().actualizar()
@@ -332,11 +350,16 @@ class Unicornio(Enemigo):
     def intentar_disparar(self, projs):
         if self.cd <= 0:
             y = self.rect.top - 10
-            projs.append(Edificio(self.rect.left, y, vx=6, vy=-4, gravedad=0.25))
+            vx_proj = 6 if not self.hacia_izquierda else -6
+            x_proj = self.rect.right if not self.hacia_izquierda else self.rect.left
+            projs.append(Edificio(x_proj, y, vx=vx_proj, vy=-4, gravedad=0.25))
             self.cd = 110; sfx(shoot_snd)
     def dibujar(self, surf):
         if self.sprite:
-            surf.blit(scale_img(self.sprite, self.rect.size), self.rect)
+            img = scale_img(self.sprite, self.rect.size)
+            if self.hacia_izquierda:
+                img = pygame.transform.flip(img, True, False)
+            surf.blit(img, self.rect)
         else: super().dibujar(surf)
 
 class Proyectil:
@@ -345,14 +368,17 @@ class Proyectil:
         self.vx, self.vy, self.g = vx, vy, gravedad
         self.sprite = sprite; self.color = color
     def actualizar(self):
-        self.rect.x -= self.vx
+        self.rect.x += self.vx
         self.vy += self.g
         self.rect.y += int(self.vy)
     def fuera(self):
         return self.rect.right < 0 or self.rect.top > ALTO or self.rect.bottom < 0
     def dibujar(self, surf):
         if self.sprite:
-            surf.blit(scale_img(self.sprite, self.rect.size), self.rect)
+            img = scale_img(self.sprite,self.rect.size)
+            if self.vx > 0:
+                img = pygame.transform.flip(img,True,False)
+            surf.blit(img, self.rect)
         else:
             pygame.draw.rect(surf, self.color, self.rect)
 
@@ -416,11 +442,13 @@ def reset_patron(nuevo=None):
     if nuevo is not None: pat_idx = nuevo % len(PATRONES)
     step_idx = 0; dist_px_hasta_siguiente = 0
 
-def procesar_siguiente_item(vel_scroll, enemigos, extras_cb):
+def procesar_siguiente_item(vel_scroll, enemigos, extras_cb, lado="derecha"):
     global pat_idx, step_idx
     seq = PATRONES[pat_idx]
     item = seq[step_idx]
     step_idx = (step_idx + 1) % len(seq)
+    spawn_izquierda = lado == "izquierda"
+    x_spawn = -40 if spawn_izquierda else ANCHO + 40
 
     t = item["tipo"]
     if t == "gap":
@@ -431,13 +459,13 @@ def procesar_siguiente_item(vel_scroll, enemigos, extras_cb):
         extras_cb(); return 200
     if t == "abeja":
         y = item.get("y", SUELO_Y - 140)
-        enemigos.append(Abeja(ANCHO + 40, y, w=28, h=24, vx=vel_scroll + 2, sprite=sprite_bee))
+        enemigos.append(Abeja(x_spawn, y, w=28, h=24, vx=vel_scroll + 2, sprite=sprite_bee, hacia_izquierda=not spawn_izquierda))
         sfx(buzz_snd); extras_cb(); return 220
     if t == "elefante":
-        enemigos.append(Elefante(ANCHO + 40, w=80, h=60, vx=vel_scroll, sprite=sprite_elephant))
+        enemigos.append(Elefante(x_spawn, w=80, h=60, vx=vel_scroll, sprite=sprite_elephant,hacia_izquierda=not spawn_izquierda))
         extras_cb(); return 260
     if t == "unicornio":
-        enemigos.append(Unicornio(ANCHO + 40, w=80, h=60, vx=vel_scroll, sprite=sprite_unicorn))
+        enemigos.append(Unicornio(x_spawn, w=80, h=60, vx=vel_scroll, sprite=sprite_unicorn,hacia_izquierda=not spawn_izquierda))
         extras_cb(); return 280
     extras_cb(); return 220
 
@@ -464,7 +492,7 @@ def main():
     nubes = [Nube(x, random.randint(30, 140), random.uniform(0.8, 1.3)) for x in [80, 260, 430, 620]]
     suelo = crear_suelo()
 
-    oso = Oso(150, SUELO_Y - 50)
+    oso = Oso(ANCHO // 2-30, SUELO_Y - 50)
     vel_scroll_base = 5
     vel_scroll = vel_scroll_base
 
@@ -525,13 +553,14 @@ def main():
             # fondo + scroll mundo
             fondo.update(vel_scroll)
             for nube in nubes:
-                nube.mover(-int(vel_scroll * 0.3))
+                nube.mover(-int(vel_scroll * 0.2))
             mover_suelo(suelo, -vel_scroll)
 
             # patrones por distancia
             dist_px_hasta_siguiente -= vel_scroll
             while dist_px_hasta_siguiente <= 0:
-                dist_px_hasta_siguiente += procesar_siguiente_item(vel_scroll, enemigos, extras_spawn)
+                lado = random.choice(["izquierda","derecha"])
+                dist_px_hasta_siguiente += procesar_siguiente_item(vel_scroll, enemigos, extras_spawn, lado = lado)
 
             # jugador
             oso.mover_x(dx)
