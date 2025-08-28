@@ -1,23 +1,23 @@
+# backend.py
 import pygame
 import random
-import sys
 import os
 import math
+
 
 # ---------------- Configuración base ----------------
 ANCHO, ALTO = 800, 600
 SUELO_Y = 300
 FPS = 60
 
-# Preferencias de presentación
-PIXEL_ART = True        # True = escalado nítido (pixel-perfect)
-SHOW_SUELO = True       # mostrar suelo verde del motor
-BG_SPEED = 0         # velocidad de parallax del fondo (0 = estático)
+PIXEL_ART = True
+SHOW_SUELO = True
+BG_SPEED = 0
 
-COLOR_CIELO = (135, 206, 235)   # skyblue
-COLOR_SUELO = (0, 128, 0)       # green
-COLOR_ENEMIGO = (139, 0, 0)     # darkred
-COLOR_TEXTO = (0, 0, 0)         # black
+COLOR_CIELO = (135, 206, 235)
+COLOR_SUELO = (0, 128, 0)
+COLOR_ENEMIGO = (139, 0, 0)
+COLOR_TEXTO = (0, 0, 0)
 COLOR_BROWN = (165, 42, 42)
 COLOR_SADDLE = (139, 69, 19)
 BLANCO = (255, 255, 255)
@@ -26,19 +26,15 @@ GRIS = (200, 200, 200)
 AMARILLO = (255, 215, 0)
 AZUL = (70, 130, 180)
 
-# --- Rutas de assets (opcionales) ---
+# --- Rutas de assets ---
 ASSETS = os.path.join(os.path.dirname(__file__), "assets")
-# player
 BEAR_FRAMES = [os.path.join(ASSETS, f"bear_{i}.png") for i in range(8)]
 BEAR_FALLBACK = os.path.join(ASSETS, "bear.png")
-# enemigos
 ELEPHANT_PNG = os.path.join(ASSETS, "elephant.png")
 UNICORN_PNG  = os.path.join(ASSETS, "unicorn.png")
 BEE_PNG      = os.path.join(ASSETS, "bee.png")
-# proyectiles
 SHEET_PNG    = os.path.join(ASSETS, "sheet.png")
 BUILDING_PNG = os.path.join(ASSETS, "building.png")
-# sonidos
 SND_JUMP  = os.path.join(ASSETS, "jump.wav")
 SND_COIN  = os.path.join(ASSETS, "coin.wav")
 SND_HIT   = os.path.join(ASSETS, "hit.wav")
@@ -46,22 +42,13 @@ SND_PWR   = os.path.join(ASSETS, "powerup.wav")
 SND_SHOOT = os.path.join(ASSETS, "shoot.wav")
 SND_BUZZ  = os.path.join(ASSETS, "buzz.wav")
 BGM_OGG   = os.path.join(ASSETS, "bgm.ogg")
-# high score
 HIGHSCORE_FILE = os.path.join(os.path.dirname(__file__), "highscore.txt")
 
 pygame.init()
-pygame.display.set_caption("Runner del Oso — Sprites + Proyectiles + Fondo")
-LOGICO = (ANCHO, ALTO)
-pantalla = pygame.display.set_mode(LOGICO)
-superficie = pygame.Surface(LOGICO)
-fullscreen = False
 
-clock = pygame.time.Clock()
-font = pygame.font.SysFont("arial", 22, bold=True)
-font_big = pygame.font.SysFont("arial", 40, bold=True)
-
-# -------- helpers de assets --------
+# ---------------- Helpers ----------------
 def load_img(path):
+    screen = pygame.display.set_mode((ANCHO, ALTO))
     if os.path.exists(path):
         try:
             return pygame.image.load(path).convert_alpha()
@@ -84,10 +71,8 @@ def sfx(s):
         pass
 
 def scale_img(img, size):
-    """Escala nítido si PIXEL_ART=True; suave si False."""
     return pygame.transform.scale(img, size) if PIXEL_ART else pygame.transform.smoothscale(img, size)
 
-# Detectar todos los backgrounds: background*.png
 def load_backgrounds():
     files = [f for f in os.listdir(ASSETS)
              if f.lower().startswith("background") and f.lower().endswith(".png")]
@@ -99,61 +84,22 @@ def load_backgrounds():
             items.append((name, img))
     return items
 
-# sprites
-bear_frames = []
-for p in BEAR_FRAMES:
-    img = load_img(p)
-    if img: bear_frames.append(img)
-if not bear_frames:
-    img = load_img(BEAR_FALLBACK)
-    if img: bear_frames = [img]
+# ---------------- High Score ----------------
+def cargar_highscore():
+    try:
+        with open(HIGHSCORE_FILE, "r", encoding="utf-8") as f:
+            return int(f.read().strip())
+    except Exception:
+        return 0
 
-sprite_elephant = load_img(ELEPHANT_PNG)
-sprite_unicorn  = load_img(UNICORN_PNG)
-sprite_bee      = load_img(BEE_PNG)
-sprite_sheet    = load_img(SHEET_PNG)
-sprite_building = load_img(BUILDING_PNG)
-backgrounds = load_backgrounds()   # lista de (nombre, imagen)
+def guardar_highscore(v):
+    try:
+        with open(HIGHSCORE_FILE, "w", encoding="utf-8") as f:
+            f.write(str(v))
+    except Exception:
+        pass
 
-# sonidos
-jump_snd  = load_sound(SND_JUMP)
-coin_snd  = load_sound(SND_COIN)
-hit_snd   = load_sound(SND_HIT)
-pwr_snd   = load_sound(SND_PWR)
-shoot_snd = load_sound(SND_SHOOT)
-buzz_snd  = load_sound(SND_BUZZ)
-# música de fondo opcional
-try:
-    if os.path.exists(BGM_OGG):
-        pygame.mixer.music.load(BGM_OGG)
-        pygame.mixer.music.set_volume(0.4)
-        pygame.mixer.music.play(-1)
-except Exception:
-    pass
-
-def toggle_fullscreen():
-    global pantalla, fullscreen
-    fullscreen = not fullscreen
-    if fullscreen:
-        pantalla = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
-    else:
-        pantalla = pygame.display.set_mode(LOGICO)
-
-# ---------------- Utilidades HUD ----------------
-def dibujar_corazon(surface, x, y, t=6, color=ROJO):
-    pts = [
-        (x, y),
-        (x - t, y - t),
-        (x - 2*t, y),
-        (x - t, y + 2*t),
-        (x, y + 3*t),
-        (x + t, y + 2*t),
-        (x + 2*t, y),
-        (x + t, y - t),
-    ]
-    pygame.draw.polygon(surface, color, pts)
-
-# ---------------- Fondo parallax ----------------
+# ---------------- Fondo ----------------
 class Fondo:
     def __init__(self, img, speed=0.25):
         self.img = img
@@ -170,7 +116,7 @@ class Fondo:
                 self.x += w
     def draw(self, surf):
         if not self.img:
-            surf.fill(COLOR_CIELO)  # fallback: cielo plano
+            surf.fill(COLOR_CIELO)
             return
         w = self.img.get_width()
         x1 = int(self.x)
@@ -204,11 +150,31 @@ def mover_suelo(bloques, dx):
         if b.right <= 0:
             max_x = max(bb.right for bb in bloques)
             b.x = max_x
-def dibujar_suelo(surf, bloques):
-    for b in bloques:
-        pygame.draw.rect(surf, COLOR_SUELO, b)
 
 # ---------------- Jugador (osito) ----------------
+bear_frames = []
+for p in BEAR_FRAMES:
+    img = load_img(p)
+    if img: bear_frames.append(img)
+if not bear_frames:
+    img = load_img(BEAR_FALLBACK)
+    if img: bear_frames = [img]
+
+jump_snd = load_sound(SND_JUMP)
+coin_snd = load_sound(SND_COIN)
+hit_snd = load_sound(SND_HIT)
+pwr_snd = load_sound(SND_PWR)
+shoot_snd = load_sound(SND_SHOOT)
+buzz_snd = load_sound(SND_BUZZ)
+
+try:
+    if os.path.exists(BGM_OGG):
+        pygame.mixer.music.load(BGM_OGG)
+        pygame.mixer.music.set_volume(0.4)
+        pygame.mixer.music.play(-1)
+except Exception:
+    pass
+
 class Oso:
     patron = [
         ["", "D", "D", "D", "D", ""],
@@ -224,7 +190,6 @@ class Oso:
         self.saltando = False
         self.agachado = False
         self.invencible_hasta = 0
-        # sprite
         self.frames = bear_frames[:] if bear_frames else []
         self.frame_i = 0
         self.frame_timer = 0
@@ -274,7 +239,14 @@ class Oso:
         else:
             for r, color in self.partes: surf.fill(color, r)
         if self.es_invencible():
-            pygame.draw.rect(surf, AZUL, bb.inflate(10, 10), width=3)
+            pygame.draw.rect(surf, AZUL, bb.inflate(10,10), width=3)
+
+# ---------------- Enemigos y proyectiles ----------------
+sprite_elephant = load_img(ELEPHANT_PNG)
+sprite_unicorn = load_img(UNICORN_PNG)
+sprite_bee = load_img(BEE_PNG)
+sprite_sheet = load_img(SHEET_PNG)
+sprite_building = load_img(BUILDING_PNG)
 
 # ---------------- Enemigos y proyectiles ----------------
 class Enemigo:
@@ -406,7 +378,7 @@ class PowerUpEscudo:
     def dibujar(self, surf):
         pygame.draw.rect(surf, AZUL, self.rect, border_radius=6)
         pygame.draw.rect(surf, BLANCO, self.rect, 2, border_radius=6)
-
+        
 # ---------------- Patrones ----------------
 PATRONES = [
     [
@@ -468,197 +440,3 @@ def procesar_siguiente_item(vel_scroll, enemigos, extras_cb, lado="derecha"):
         enemigos.append(Unicornio(x_spawn, w=80, h=60, vx=vel_scroll, sprite=sprite_unicorn,hacia_izquierda=not spawn_izquierda))
         extras_cb(); return 280
     extras_cb(); return 220
-
-# ---------------- High Score ----------------
-def cargar_highscore():
-    try:
-        with open(HIGHSCORE_FILE, "r", encoding="utf-8") as f:
-            return int(f.read().strip())
-    except Exception:
-        return 0
-def guardar_highscore(v):
-    try:
-        with open(HIGHSCORE_FILE, "w", encoding="utf-8") as f:
-            f.write(str(v))
-    except Exception:
-        pass
-
-# ---------------- Juego ----------------
-def main():
-    # Fondo: usa el primero disponible background*.png (si hay)
-    bg_idx = 0
-    fondo = Fondo(backgrounds[0][1], speed=BG_SPEED) if backgrounds else Fondo(None, speed=BG_SPEED)
-
-    nubes = [Nube(x, random.randint(30, 140), random.uniform(0.8, 1.3)) for x in [80, 260, 430, 620]]
-    suelo = crear_suelo()
-
-    oso = Oso(ANCHO // 2-30, SUELO_Y - 50)
-    vel_scroll_base = 5
-    vel_scroll = vel_scroll_base
-
-    enemigos = []
-    projs = []
-    monedas = []
-    pwrups = []
-    puntos = 0
-    monedas_c = 0
-    nivel = 1
-    vidas = 3
-    game_over = False
-    pausa = False
-
-    reset_patron(0)
-    global dist_px_hasta_siguiente
-    dist_px_hasta_siguiente = 0
-
-    highscore = cargar_highscore()
-
-    def extras_spawn():
-        if random.random() < 0.35:
-            y = random.choice([SUELO_Y - 60, SUELO_Y - 120, SUELO_Y - 180])
-            monedas.append(Moneda(ANCHO + 40, y, r=10, vx=vel_scroll))
-        if random.random() < 0.08:
-            y = random.choice([SUELO_Y - 120, SUELO_Y - 160])
-            pwrups.append(PowerUpEscudo(ANCHO + 40, y, w=22, h=22, vx=vel_scroll))
-
-    while True:
-        # eventos
-        for e in pygame.event.get():
-            if e.type == pygame.QUIT:
-                pygame.quit(); sys.exit()
-            if e.type == pygame.KEYDOWN:
-                if e.key == pygame.K_ESCAPE: pygame.quit(); sys.exit()
-                if e.key == pygame.K_F11: toggle_fullscreen()
-                if e.key == pygame.K_F5 and backgrounds:
-                    # Cambiar de background
-                    bg_idx = (bg_idx + 1) % len(backgrounds)
-                    fondo.set_img(backgrounds[bg_idx][1])
-                if e.key == pygame.K_F6:
-                    # toggle suelo
-                    global SHOW_SUELO
-                    SHOW_SUELO = not SHOW_SUELO
-                if e.key == pygame.K_p: pausa = not pausa
-                if not game_over and not pausa:
-                    if e.key == pygame.K_UP: oso.saltar()
-                    elif e.key == pygame.K_DOWN: oso.crouch_on()
-                if game_over and e.key == pygame.K_r: return main()
-            if e.type == pygame.KEYUP:
-                if e.key == pygame.K_DOWN: oso.crouch_off()
-
-        keys = pygame.key.get_pressed()
-        dx = (keys[pygame.K_RIGHT] - keys[pygame.K_LEFT]) * 4
-
-        # lógica
-        if not game_over and not pausa:
-            # fondo + scroll mundo
-            fondo.update(vel_scroll)
-            for nube in nubes:
-                nube.mover(-int(vel_scroll * 0.2))
-            mover_suelo(suelo, -vel_scroll)
-
-            # patrones por distancia
-            dist_px_hasta_siguiente -= vel_scroll
-            while dist_px_hasta_siguiente <= 0:
-                lado = random.choice(["izquierda","derecha"])
-                dist_px_hasta_siguiente += procesar_siguiente_item(vel_scroll, enemigos, extras_spawn, lado = lado)
-
-            # jugador
-            oso.mover_x(dx)
-            oso.actualizar_gravedad()
-
-            # enemigos + disparos
-            bb = oso.bbox()
-            vivos = []
-            for en in enemigos:
-                en.actualizar()
-                if isinstance(en, Elefante): en.intentar_disparar(projs)
-                if isinstance(en, Unicornio): en.intentar_disparar(projs)
-                if en.rect.colliderect(bb):
-                    if not oso.es_invencible():
-                        vidas -= 1; sfx(hit_snd); oso.activar_escudo(1200)
-                    en.rect.x = -9999
-                if not en.fuera():
-                    vivos.append(en)
-                else:
-                    puntos += 1
-                    if puntos % 10 == 0:
-                        nivel += 1
-                        vel_scroll = vel_scroll_base + nivel
-                        reset_patron(pat_idx + 1)
-            enemigos = vivos
-
-            # proyectiles
-            nuevos_projs = []
-            for p in projs:
-                p.actualizar()
-                if p.rect.colliderect(bb):
-                    if not oso.es_invencible():
-                        vidas -= 1; sfx(hit_snd); oso.activar_escudo(1200)
-                    p.rect.x = -9999
-                if not p.fuera(): nuevos_projs.append(p)
-            projs = nuevos_projs
-
-            # monedas
-            nuevas_m = []
-            for m in monedas:
-                m.actualizar()
-                if m.rect.colliderect(bb):
-                    monedas_c += 1; puntos += 1; sfx(coin_snd)
-                elif not m.fuera(): nuevas_m.append(m)
-            monedas = nuevas_m
-
-            # powerups
-            nuevos_pw = []
-            for p in pwrups:
-                p.actualizar()
-                if p.rect.colliderect(bb): oso.activar_escudo(3500)
-                elif not p.fuera(): nuevos_pw.append(p)
-            pwrups = nuevos_pw
-
-            if vidas <= 0:
-                game_over = True
-                if puntos > highscore:
-                    highscore = puntos
-                    guardar_highscore(highscore)
-
-        # dibujo
-        fondo.draw(superficie)
-        for nube in nubes:
-            nube.dibujar(superficie)
-        if SHOW_SUELO:
-            dibujar_suelo(superficie, suelo)
-
-        hud_txt = f"Nivel: {nivel} | Puntos: {puntos} | Monedas: {monedas_c} | Vidas:"
-        superficie.blit(font.render(hud_txt, True, COLOR_TEXTO), (20, 40))
-        for i in range(3):
-            dibujar_corazon(superficie, 330 + i*22, 46, t=5, color=(ROJO if i < vidas else GRIS))
-        hs = font.render(f"High Score: {highscore}", True, COLOR_TEXTO)
-        superficie.blit(hs, (ANCHO - hs.get_width() - 20, 40))
-        titulo = font.render("F11 Fullscreen | F5 Fondo | F6 Suelo | P Pausa | ESC Salir", True, COLOR_TEXTO)
-        superficie.blit(titulo, (ANCHO//2 - titulo.get_width()//2, 8))
-
-        for en in enemigos: en.dibujar(superficie)
-        for p in projs: p.dibujar(superficie)
-        for m in monedas: m.dibujar(superficie)
-        for p in pwrups: p.dibujar(superficie)
-        oso.dibujar(superficie)
-
-        if pausa and not game_over:
-            px = font_big.render("PAUSA", True, COLOR_TEXTO)
-            superficie.blit(px, (ANCHO//2 - px.get_width()//2, ALTO//2 - 20))
-
-        if game_over:
-            go = font_big.render("GAME OVER", True, COLOR_TEXTO)
-            sc = font.render(f"Puntuación: {puntos}  |  Nivel: {nivel}", True, COLOR_TEXTO)
-            re = font.render("Pulsa R para reiniciar", True, COLOR_TEXTO)
-            superficie.blit(go, (ANCHO//2 - go.get_width()//2, ALTO//2 - 60))
-            superficie.blit(sc, (ANCHO//2 - sc.get_width()//2, ALTO//2 - 18))
-            superficie.blit(re, (ANCHO//2 - re.get_width()//2, ALTO//2 + 14))
-
-        scaled = pygame.transform.scale(superficie, pantalla.get_size())
-        pantalla.blit(scaled, (0, 0))
-        pygame.display.flip()
-        clock.tick(FPS)
-
-if __name__ == "__main__":
-    main()
